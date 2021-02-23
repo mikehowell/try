@@ -1,0 +1,296 @@
+# CI and PR triggers
+trigger:
+- main
+- feature/*
+pr:
+- main
+- feature/*
+
+variables:
+  - name: _TeamName
+    value: DotNetTry
+  - name: _BuildConfig
+    value: Release
+  - name: _PublishUsingPipelines
+    value: true
+  - name: _DotNetArtifactsCategory
+    value: .NETCore
+  - name: BlazorTemplateVersion
+    value: 3.1.0-preview4.19579.2
+  - name: DotNetSdkVersion
+    value: '3.1.300'
+  - name: NodeJSVersion
+    value: '12.15.0'
+  - name: TryDotNetPackagesPath
+    value: $(Build.SourcesDirectory)/artifacts/.trydotnet/packages
+
+stages:
+- stage: build
+  displayName: Build and Test
+  jobs:
+  - template: /eng/common/templates/jobs/jobs.yml
+    parameters:
+      enableMicrobuild: true
+      enablePublishBuildArtifacts: true
+      enablePublishTestResults: true
+      enablePublishBuildAssets: true
+      enablePublishUsingPipelines: $(_PublishUsingPipelines)
+      jobs:
+      - job: Windows_NT
+        pool:
+          ${{ if or(eq(variables['System.TeamProject'], 'public'), in(variables['Build.Reason'], 'PullRequest')) }}:
+            vmImage: windows-2019
+          ${{ if and(ne(variables['System.TeamProject'], 'public'), notin(variables['Build.Reason'], 'PullRequest')) }}:
+            name: NetCoreInternal-Pool
+            queue: buildpool.windows.10.amd64.vs2019
+        variables:
+        # Enable signing for internal, non-PR builds
+        - ${{ if and(ne(variables['System.TeamProject'], 'public'), notin(variables['Build.Reason'], 'PullRequest')) }}:
+          - group: DotNet-Blob-Feed
+          - group: DotNet-Symbol-Server-Pats
+          - name: _SignType
+            value: Real
+          - name: _DotNetPublishToBlobFeed
+            value: true
+          - name: _BuildArgs
+            value: /p:SignType=$(_SignType)
+                   /p:DotNetSignType=$(_SignType)
+                   /p:MicroBuild_SigningEnabled=true
+                   /p:OverridePackageSource=https://dotnetfeed.blob.core.windows.net/dotnet-core/index.json
+                   /p:TeamName=$(_TeamName)
+                   /p:DotNetPublishBlobFeedKey=$(dotnetfeed-storage-access-key-1)
+                   /p:DotNetPublishBlobFeedUrl=https://dotnetfeed.blob.core.windows.net/dotnet-core/index.json
+                   /p:DotNetPublishToBlobFeed=true
+                   /p:DotNetPublishUsingPipelines=$(_PublishUsingPipelines)
+                   /p:DotNetArtifactsCategory=$(_DotNetArtifactsCategory)
+                   /p:DotNetSymbolServerTokenMsdl=$(microsoft-symbol-server-pat)
+                   /p:DotNetSymbolServerTokenSymWeb=$(symweb-symbol-server-pat)
+                   /p:OfficialBuildId=$(BUILD.BUILDNUMBER)
+                   /p:PublishToSymbolServer=true
+        # else
+        - ${{ if or(eq(variables['System.TeamProject'], 'public'), in(variables['Build.Reason'], 'PullRequest')) }}:
+          - name: _SignType
+            value: Test
+          - name: _BuildArgs
+            value: /p:SignType=$(_SignType)
+        steps:
+        - script: git config --global core.longpaths true
+          displayName: Enable `git clean` to handle long paths
+
+        - checkout: self
+          clean: true
+
+        - task: NodeTool@0
+          displayName: Add NodeJS/npm
+          inputs:
+            versionSpec: $(NodeJSVersion)
+
+        - task: UseDotNet@2
+          displayName: Add dotnet 3.0
+          inputs:
+            packageType: sdk
+            version: $(DotNetSdkVersion)
+            installationPath: $(Agent.ToolsDirectory)\dotnet
+
+        - script: dotnet new -i Microsoft.AspNetCore.Blazor.Templates::$(BlazorTemplateVersion)
+          displayName: Install Blazor templates
+
+        - script: |
+            robocopy "eng\resources" "$(Build.SourcesDirectory)\artifacts"
+            :: robocopy return codes are terrible; 1 means files were copied
+            if "%errorlevel%" == "1" exit /b 0
+            exit /b 1
+          displayName: Prevent test directory crawling
+
+        - script: eng\CIBuild.cmd
+            -configuration $(_BuildConfig)
+            -prepareMachine
+            -sign
+            -test
+            $(_BuildArgs)
+          displayName: Build / Test
+          env:
+            TRYDOTNET_PACKAGES_PATH: $(TryDotNetPackagesPath)
+
+        - task: PublishTestResults@2
+          displayName: Publish NPM Test Results
+          inputs:
+            testResultsFormat: 'VSTest'
+            testResultsFiles: '*.trx'
+            searchFolder: '$(Build.SourcesDirectory)/artifacts/TestResults/$(_BuildConfig)'
+          continueOnError: true
+          condition: always()
+
+        - task: PublishBuildArtifacts@1
+          displayName: Publish packages to artifacts container
+          inputs:
+            pathToPublish: $(Build.SourcesDirectory)\artifacts\packages\$(_BuildConfig)
+            artifactName: packages
+            artifactType: container
+
+        # - task: PublishBuildArtifacts@1
+        #   displayName: Publish integration tests dll
+        #   inputs:
+        #     pathToPublish: $(Build.SourcesDirectory)\artifacts\bin\NotIntegration.Tests\$(_BuildConfig)
+        #     artifactName: integrationTests
+        #     artifactType: container
+
+  - template: /eng/common/templates/jobs/jobs.yml
+    parameters:
+      enableMicrobuild: true
+      enablePublishBuildArtifacts: true
+      enablePublishTestResults: true
+      enablePublishBuildAssets: false
+      enablePublishUsingPipelines: false
+      jobs:
+      - job: Linux
+        pool:
+          vmImage: ubuntu-16.04
+        variables:
+        # Enable signing for internal, non-PR builds
+        - ${{ if and(ne(variables['System.TeamProject'], 'public'), notin(variables['Build.Reason'], 'PullRequest')) }}:
+          - name: _SignType
+            value: Test
+          - name: _BuildArgs
+            value: /p:SignType=$(_SignType)
+              /p:DotNetSignType=$(_SignType)
+              /p:OverridePackageSource=https://dotnetfeed.blob.core.windows.net/dotnet-core/index.json
+              /p:TeamName=$(_TeamName)
+              /p:OfficialBuildId=$(BUILD.BUILDNUMBER)
+        # else
+        - ${{ if or(eq(variables['System.TeamProject'], 'public'), in(variables['Build.Reason'], 'PullRequest')) }}:
+          - name: _SignType
+            value: Test
+          - name: _BuildArgs
+            value: /p:SignType=$(_SignType)
+        steps:
+        - script: git config --global core.longpaths true
+          displayName: Enable `git clean` to handle long paths
+
+        - checkout: self
+          clean: true
+
+        - task: NodeTool@0
+          displayName: Add NodeJS/npm
+          inputs:
+            versionSpec: $(NodeJSVersion)        
+
+        - task: UseDotNet@2
+          displayName: Add dotnet 3.0
+          inputs:
+            packageType: sdk
+            version: $(DotNetSdkVersion)
+            installationPath: $(Agent.ToolsDirectory)/dotnet
+
+        - script: dotnet new -i Microsoft.AspNetCore.Blazor.Templates::$(BlazorTemplateVersion)
+          displayName: Install Blazor templates
+
+        - script: |
+            mkdir -p "$(Build.SourcesDirectory)/artifacts"
+            cp eng/resources/* "$(Build.SourcesDirectory)/artifacts"
+          displayName: Prevent test directory crawling
+
+        - script: ./eng/cibuild.sh
+            --configuration $(_BuildConfig)
+            --prepareMachine
+            --test
+          displayName: Build / Test
+          env:
+            TRYDOTNET_PACKAGES_PATH: $(TryDotNetPackagesPath)
+
+        - task: PublishTestResults@2
+          displayName: Publish NPM Test Results
+          inputs:
+            testResultsFormat: 'VSTest'
+            testResultsFiles: '*.trx'
+            searchFolder: '$(Build.SourcesDirectory)/artifacts/TestResults/$(_BuildConfig)'
+          continueOnError: true
+          condition: always()
+
+      # Up-to-date
+      - job: UpToDate_Windows
+        pool:
+          vmImage: windows-2019
+        steps:
+        - checkout: self
+          clean: true
+        - task: NodeTool@0
+          displayName: Add NodeJS/npm
+          inputs:
+            versionSpec: $(NodeJSVersion)
+        - task: UseDotNet@2
+          displayName: Add dotnet 3.0
+          inputs:
+            packageType: sdk
+            version: $(DotNetSdkVersion)
+            installationPath: $(Agent.ToolsDirectory)/dotnet
+        - script: dotnet new -i Microsoft.AspNetCore.Blazor.Templates::$(BlazorTemplateVersion)
+          displayName: Install Blazor templates
+        - task: PowerShell@2
+          displayName: Run up-to-date build check
+          inputs:
+            filePath: eng\tests\UpToDate.ps1
+            arguments: -configuration $(_BuildConfig) -ci
+
+  # - template: /eng/common/templates/jobs/jobs.yml
+  #   parameters:
+  #     enableMicrobuild: true
+  #     jobs:
+  #     - job: IntegrationTest
+  #       dependsOn: Windows_NT
+  #       condition: succeeded()
+  #       pool:
+  #         vmImage: ubuntu-16.04
+  #       variables:
+  #         - name: PACKAGESOURCE
+  #           value: $(System.DefaultWorkingDirectory)/packages/Shipping
+  #         - name: RUN_DOTNET_TRY_INTEGRATION_TESTS
+  #           value: true
+  #         - name: TryDotNetPackagesPath
+  #           value: $(Build.SourcesDirectory)/.trydotnet/packages
+  #       steps:
+  #       - checkout: none #skip checking out the default repository resource
+  #       - task: UseDotNet@2
+  #         displayName: Add dotnet 3.0
+  #         inputs:
+  #           packageType: sdk
+  #           version: $(DotNetSdkVersion)
+  #           installationPath: $(Agent.ToolsDirectory)/dotnet
+
+  #       - script: dotnet new -i Microsoft.AspNetCore.Blazor.Templates::$(BlazorTemplateVersion)
+  #         displayName: Install Blazor templates
+
+  #       - task: DownloadBuildArtifacts@0
+  #         displayName: 'Download built packages'
+  #         inputs:
+  #           artifactName: packages
+  #           downloadPath: $(System.DefaultWorkingDirectory)
+
+  #       - task: DownloadBuildArtifacts@0
+  #         displayName: 'Download built integrationtests'
+  #         inputs:
+  #           artifactName: integrationTests
+  #           downloadPath: $(System.DefaultWorkingDirectory)
+
+  #       - script: dotnet vstest $(System.DefaultWorkingDirectory)/integrationTests/netcoreapp3.1/NotIntegration.Tests.dll --ResultsDirectory:$(System.DefaultWorkingDirectory)/testResults | tee $(Build.SourcesDirectory)\artifacts\log\$(_BuildConfig)\log.txt
+  #         displayName: Run integration tests
+
+  #       - task: PublishTestResults@2
+  #         displayName: Publish NPM Test Results
+  #         inputs:
+  #           testResultsFormat: 'VSTest'
+  #           testResultsFiles: '*.trx'
+  #           searchFolder: '$(SystemWorkingDirectory)/testResults'
+  #         continueOnError: true
+  #         condition: always()
+
+#---------------------------------------------------------------------------------------------------------------------#
+#                                                    Post Build                                                       #
+#---------------------------------------------------------------------------------------------------------------------#
+- ${{ if and(ne(variables['System.TeamProject'], 'public'), notin(variables['Build.Reason'], 'PullRequest')) }}:
+  - template: eng/common/templates/post-build/post-build.yml
+    parameters:
+      # Symbol validation is not entirely reliable as of yet, so should be turned off until https://github.com/dotnet/arcade/issues/2871 is resolved.
+      enableSymbolValidation: false
+      # SourceLink improperly looks for generated files.  See https://github.com/dotnet/arcade/issues/3069
+      enableSourceLinkValidation: false

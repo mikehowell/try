@@ -1,50 +1,45 @@
+# Try .NET <img src ="https://user-images.githubusercontent.com/2546640/56708992-deee8780-66ec-11e9-9991-eb85abb1d10a.png" width="80px" alt="dotnet bot in space" align ="right">
+|| [**Contribution Guidelines**](#contribution-guidelines) || [**Table of contents**](#table-of-contents) || [**Customers & Partners**](#customers--partners) ||
 
-# Welcome to the Try.NET Repo 
-
-## What is Try.NET ?
-
-Try .NET is an inline code runner and playground that enables people to experiment and learn about C# in the browser. 
-
-**Note**: Currently,Try .NET only supports C# but we do plan to enable support F# and VB in the near future. 
-
-### What is the repo for?
-- A place where you can post issues about the [Try .NET](https://try.dot.net),
-- We will be posting the Try .NET roadmap shortly. 
-- **Please Note:** The code for Try .NET is not currently hosted on GitHub.  
-
-## Examples of the Try .NET 
-
-### Learn C# with interactive tutorials 
-
-[Link to C# quick start](https://docs.microsoft.com/en-us/dotnet/csharp/quick-starts/)
-![repl](https://user-images.githubusercontent.com/2546640/31154776-60fc3820-a877-11e7-9330-ba7cdaa7e639.gif)
+![Try_.NET Enabled](https://img.shields.io/badge/Try_.NET-Enabled-501078.svg)
 
 
-**About the C# Quick starts:**  You'll learn the basics of C# syntax and how to work with data types like strings, numbers, and booleans. It's all interactive, and you'll be writing code within minutes. These first lessons assume no prior knowledge of programming or the C# language.
+[![Build Status](https://dev.azure.com/dnceng/public/_apis/build/status/dotnet/try/try-ci?branchName=main)](https://dev.azure.com/dnceng/public/_build/latest?definitionId=495&branchName=main)
 
-### Interactive Documentation 
+## Welcome to the Try .NET repo.
 
-*coming soon to docs.microsoft.com*
+Try .NET provides developers and content authors with tools to create interactive experiences.
 
-![snippet](https://user-images.githubusercontent.com/2546640/31156287-a357ca5e-a881-11e7-88b9-100d09712a40.gif)
+There are two different Try .NET interactive experiences:
+* The web experience powered by Blazor (as seen on [Microsoft docs](https://docs.microsoft.com/en-us/dotnet/csharp/tutorials/intro-to-csharp/hello-world))
+* Interactive documentation with Markdown for .NET Core with the [dotnet try global tool](DotNetTry.md). 
 
-Run the snippets in the docs. 
+### Online, powered by Blazor
 
-### Explore Try .NET 
+Microsoft Docs uses Try .NET to create interactive documentation. Users can run and edit code all in the browser.
 
-Try .NET is the code runner behind the interactive tutorials and snippets. If you would like to explore in its raw state, [check it out here](https://try.dot.net/).
+_**Please Note**: At the moment, the Try .NET online (`trydotnet.js API`) is currently only used internally at Microsoft as seen on docs and [.NET page](https://dotnet.microsoft.com/learn/dotnet/in-browser-tutorial/1)._
 
-![try](https://user-images.githubusercontent.com/2546640/31156674-e8515290-a883-11e7-88fa-7326726b8bdb.gif)
+<img src ="https://user-images.githubusercontent.com/2546640/57144765-c850cc00-6d8f-11e9-982d-50d2b6dc3591.gif" width = "80%">
 
-### Interactive Experiences Online
-The number of .NET online code experiences are growing and we are just one of a few out there. Other .NET online code experiences are:
+### Interactive .NET Core documentation with the `dotnet try` global tool
 
-- [dotnetfiddle](https://dotnetfiddle.net/)
-- [sharplab io](https://sharplab.io/)
-- [rextester]( http://rextester.com/)
-- [repl.it](https://repl.it/languages/csharp)
-- [C# pad](https://csharppad.com/)
-- [Learn CS](http://www.learncs.org/)
-- [Tech.io](https://tech.io/snippet?l=csharp)
+Try .NET enables .NET developers to create interactive markdown files.
+To make your markdown files interactive, you will need the [.NET Core 3.0 SDK](https://dotnet.microsoft.com/download/dotnet-core/3.0), the `dotnet try` global tool and [Visual Studio](https://visualstudio.microsoft.com/) / [VS Code](https://code.visualstudio.com/) (or any other editor of your choice). 
 
-*Feel free to add the list*
+<img src ="https://user-images.githubusercontent.com/2546640/57158389-47a2c780-6db1-11e9-96ad-8c6e9ab52853.png" width = "80%">
+
+## Table of Contents
+- [Getting Started with Try .NET](DotNetTryLocal.md): Interactive documentation generator for .NET Core.
+
+
+## Contribution Guidelines
+
+As we are still in the early stages of our development, we are unable to take any feature PRs at the moment, but we intend to do so in the future.
+If you find an issue or have a feature suggestion, please open an [issue](https://github.com/dotnet/try/issues/new/choose). And if you have any feature suggestions, please submit them using the "community suggestions" label.
+
+## Customers & Partners
+
+**Microsoft Docs**  
+
+Microsoft Docs uses [Try .NET](https://docs.microsoft.com/en-us/dotnet/csharp/tutorials/intro-to-csharp/hello-world) to create interactive documentation. Users can run and edit .NET code in the browser. 
